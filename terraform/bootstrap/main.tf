@@ -3,11 +3,10 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  # Inicialmente comentamos o backend para o primeiro 'terraform init'
-  # backend "gcs" {
-  #   bucket = "ldp21k-labs-tfstate"
-  #   prefix = "bootstrap/state"
-  # }
+  backend "gcs" {
+    bucket = "ldp21k-labs-tfstate"
+    prefix = "bootstrap/state"
+  }
 
   required_providers {
     google = {
