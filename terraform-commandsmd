@@ -1,0 +1,20 @@
+# 1. Limpeza de sanidade (opcional)
+find . -type d -name ".terraform" -exec rm -rf {} +
+
+# 2. Teste a FUNDAÇÃO (Rede)
+cd terraform/network
+terraform init && terraform plan -var="project_id=ldp21k-labs"
+
+# 3. Teste a SEGURANÇA (Artifact Registry)
+cd ../security
+terraform init && terraform plan -var="project_id=ldp21k-labs"
+
+# 4. Teste o WORKLOAD (App)
+# Este vai ler o estado da rede, então a rede PRECISA estar aplicada no GCP
+cd ../workloads
+terraform init && terraform plan -var="project_id=ldp21k-labs"
+
+# 5. Teste a OBSERVAÇÃO (Dashboard)
+# Este vai ler o estado do workload
+cd ../observability
+terraform init && terraform plan -var="project_id=ldp21k-labs"
