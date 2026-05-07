@@ -28,6 +28,22 @@ provider "google" {
   region  = var.region
 }
 
+# Ativando a API do Cloud Run
+resource "google_project_service" "cloudrun_api" {
+  project = var.project_id
+  service = "run.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+# Ativando a API de VPC Access (necessária para o Direct VPC Egress)
+resource "google_project_service" "vpcaccess_api" {
+  project = var.project_id
+  service = "vpcaccess.googleapis.com"
+
+  disable_on_destroy = false
+}
+
 # Cloud Run: A API de Agendamento do Hospital
 resource "google_cloud_run_v2_service" "hospital_api" {
   name     = "hospital-api"
@@ -56,8 +72,13 @@ resource "google_cloud_run_v2_service" "hospital_api" {
       egress = "ALL_TRAFFIC" 
     }
   }
-
-  depends_on = [google_service_account.hospital_api_sa]
+# GARANTE QUE A API ESTEJA ATIVA ANTES DE TENTAR CRIAR O SERVIÇO
+  depends_on = [
+    google_project_service.cloudrun_api,
+    google_project_service.vpcaccess_api,
+    google_service_account.hospital_api_sa
+  ]
+ 
 }
 
 # Permitir acesso público apenas para este lab (No hospital real, usaríamos IAP)
