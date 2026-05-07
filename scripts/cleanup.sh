@@ -1,36 +1,93 @@
 #!/bin/bash
-# cleanup.sh - Script de Destruição Segura para Economia de Custos (Hospital Lab)
+# cleanup.sh - Script de Destruição Segura para Economia de Custos
+
+set -e
+
+# Diretório do script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Vai para raiz do projeto
+cd "$ROOT_DIR"
 
 PROJECT_ID="ldp21k-labs"
 
-echo "--------------------------------------------------------"
-echo "🏦 Iniciando Desligamento da Infraestrutura Hospitalar..."
-echo "--------------------------------------------------------"
+# Cores
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-# 1. Observability (Dashboard e Uptime Checks - Sem custo alto, mas boa prática)
-echo "🚀 Destruindo Camada de Observabilidade..."
-cd terraform/observability
-terraform init && terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
+echo -e "${GREEN}--------------------------------------------------------${NC}"
+echo -e "🏦 Iniciando Desligamento da Infraestrutura Hospitalar..."
+echo -e "${GREEN}--------------------------------------------------------${NC}"
 
-# 2. Workloads (Cloud Run - Cobra apenas por execução, mas o NAT associado cobra por hora)
-echo "🚀 Destruindo Camada de Workloads (Cloud Run)..."
-cd ../workloads
-terraform init && terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
+# Função reutilizável
+destroy_module() {
+    local dir=$1
+    local description=$2
 
-# 3. Security (Artifact Registry - Cobra apenas armazenamento, custo quase zero)
-# Você pode escolher NÃO destruir esta pasta para manter suas imagens,
-# mas se quiser limpeza total, use as linhas abaixo:
-echo "🚀 Destruindo Camada de Segurança (Artifact Registry)..."
-cd ../security
-terraform init && terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
+    echo -e "\n${YELLOW}🧨 ${description}${NC}"
 
-# 4. Network (VPC, Cloud NAT e Router - OS VILÕES DO CUSTO)
-# O Cloud NAT cobra ~US$ 1.00 por dia só por estar ligado.
-echo "🚀 Destruindo Camada de Rede (HUB VPC & NAT)..."
-cd ../network
-terraform init && terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
+    cd "$ROOT_DIR/terraform/$dir" || {
+        echo -e "${RED}❌ Pasta terraform/$dir não encontrada${NC}"
+        exit 1
+    }
 
-echo "--------------------------------------------------------"
-echo "✅ Todos os recursos passíveis de cobrança foram removidos."
-echo "✅ Bootstrap (Bucket) e WIF permanecem ativos (Custo Zero)."
-echo "--------------------------------------------------------"
+    echo -e "${YELLOW}🔧 Inicializando Terraform...${NC}"
+
+    terraform init -reconfigure
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform init em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Init OK${NC}"
+
+    echo -e "${YELLOW}📋 Gerando plano de destruição...${NC}"
+
+    terraform plan \
+        -destroy \
+        -var="project_id=$PROJECT_ID" \
+        -lock=false \
+        -input=false
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform plan destroy em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Plan Destroy OK${NC}"
+
+    echo -e "${YELLOW}🔥 Destruindo infraestrutura...${NC}"
+
+    terraform destroy \
+        -auto-approve \
+        -var="project_id=$PROJECT_ID"
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform destroy em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Recursos de $dir removidos com sucesso${NC}"
+
+    # Volta para raiz
+    cd "$ROOT_DIR"
+}
+
+# Ordem reversa de dependência
+destroy_module "observability" "Passo 1: Removendo Observabilidade"
+destroy_module "workloads" "Passo 2: Removendo Workloads (Cloud Run)"
+destroy_module "security" "Passo 3: Removendo Segurança (Artifact Registry)"
+destroy_module "network" "Passo 4: Removendo Rede Hub (VPC, NAT, Router)"
+
+echo -e "\n${GREEN}--------------------------------------------------------${NC}"
+echo -e "✅ Todos os recursos passíveis de cobrança foram removidos."
+echo -e "💰 Custos recorrentes interrompidos com sucesso."
+echo -e "ℹ️ Recursos de bootstrap podem permanecer ativos:"
+echo -e "   • Bucket Terraform State"
+echo -e "   • Workload Identity Federation"
+echo -e "   • Service Accounts"
+echo -e "${GREEN}--------------------------------------------------------${NC}"
