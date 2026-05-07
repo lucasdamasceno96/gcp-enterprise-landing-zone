@@ -1,37 +1,92 @@
 #!/bin/bash
 # setup.sh - Script de Inicialização da Landing Zone Hospitalar
 
+set -e
+
+# Diretório do script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Vai para raiz do projeto
+cd "$ROOT_DIR"
+
 PROJECT_ID="ldp21k-labs"
 
-echo "--------------------------------------------------------"
-echo "🏦 Iniciando Provisionamento da Infraestrutura Hospitalar..."
-echo "--------------------------------------------------------"
+# Cores
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-# 1. Foundation: Network (VPC e NAT)
-echo "🌐 Passo 1: Construindo a Rede Hub (VPC, Subnet, NAT)..."
-cd terraform/network
-terraform init && terraform apply -auto-approve -var="project_id=$PROJECT_ID"
-if [ $? -ne 0 ]; then echo "❌ Erro na Rede. Abortando."; exit 1; fi
+echo -e "${GREEN}--------------------------------------------------------${NC}"
+echo -e "🏦 Iniciando Provisionamento da Infraestrutura Hospitalar..."
+echo -e "${GREEN}--------------------------------------------------------${NC}"
 
-# 2. Security: Artifact Registry
-echo "🔐 Passo 2: Configurando Segurança (Artifact Registry)..."
-cd ../security
-terraform init && terraform apply -auto-approve -var="project_id=$PROJECT_ID"
-if [ $? -ne 0 ]; then echo "❌ Erro em Security. Abortando."; exit 1; fi
+# Função reutilizável
+deploy_module() {
+    local dir=$1
+    local description=$2
 
-# 3. Workloads: Cloud Run
-echo "🚀 Passo 3: Deploy do Workload (Hospital API no Cloud Run)..."
-cd ../workloads
-terraform init && terraform apply -auto-approve -var="project_id=$PROJECT_ID"
-if [ $? -ne 0 ]; then echo "❌ Erro no Workload. Abortando."; exit 1; fi
+    echo -e "\n${YELLOW}🚀 ${description}${NC}"
 
-# 4. Observability: Dashboard e Monitoramento
-echo "📊 Passo 4: Ativando Observabilidade (Dashboards e Uptime)..."
-cd ../observability
-terraform init && terraform apply -auto-approve -var="project_id=$PROJECT_ID"
-if [ $? -ne 0 ]; then echo "❌ Erro em Observability. Abortando."; exit 1; fi
+    cd "$ROOT_DIR/terraform/$dir" || {
+        echo -e "${RED}❌ Pasta terraform/$dir não encontrada${NC}"
+        exit 1
+    }
 
-echo "--------------------------------------------------------"
-echo "✨ Landing Zone Hospitalar está ONLINE!"
-echo "📍 Acesse o Console do GCP para ver seu Dashboard e API."
-echo "--------------------------------------------------------"
+    echo -e "${YELLOW}🔧 Inicializando Terraform...${NC}"
+
+    terraform init -reconfigure
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform init em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Init OK${NC}"
+
+    echo -e "${YELLOW}📋 Executando terraform plan...${NC}"
+
+    terraform plan \
+        -var="project_id=$PROJECT_ID" \
+        -lock=false \
+        -input=false
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform plan em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Plan OK${NC}"
+
+    echo -e "${YELLOW}🏗️ Aplicando infraestrutura...${NC}"
+
+    terraform apply \
+        -auto-approve \
+        -var="project_id=$PROJECT_ID"
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Falha no terraform apply em $dir${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Deploy de $dir concluído com sucesso${NC}"
+
+    # Volta para raiz
+    cd "$ROOT_DIR"
+}
+
+# Ordem de dependência correta
+deploy_module "network" "Passo 1: Construindo Rede Hub (VPC, Subnet, NAT)"
+deploy_module "security" "Passo 2: Configurando Segurança (Artifact Registry)"
+deploy_module "workloads" "Passo 3: Deploy do Workload (Cloud Run)"
+deploy_module "observability" "Passo 4: Ativando Observabilidade"
+
+echo -e "\n${GREEN}--------------------------------------------------------${NC}"
+echo -e "✨ Landing Zone Hospitalar está ONLINE!"
+echo -e "📍 Acesse o Console do GCP para visualizar:"
+echo -e "   • Cloud Run"
+echo -e "   • Artifact Registry"
+echo -e "   • Dashboards"
+echo -e "   • Monitoring"
+echo -e "${GREEN}--------------------------------------------------------${NC}"
