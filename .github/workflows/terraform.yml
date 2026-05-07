@@ -8,24 +8,24 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+# Prevents multiple concurrent runs on the same branch from corrupting the state
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
+  id-token: write      # Required for requesting the JWT for Workload Identity Federation
+  pull-requests: write # Required for posting Plan comments on PRs
 
 jobs:
-  terraform:
-    name: "Terraform Build"
+  # --------------------------------------------------------------------------------
+  # JOB 1: NETWORK (THE HUB)
+  # This must run first as it creates the VPC and Subnets others depend on.
+  # --------------------------------------------------------------------------------
+  network:
+    name: "Foundation: Network"
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        directory: [network, workloads]
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -33,7 +33,46 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          token_format: "access_token"
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform/network
+
+      - name: Terraform Plan
+        run: terraform plan -var="project_id=${{ vars.GCP_PROJECT_ID }}" -no-color
+        working-directory: ./terraform/network
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -var="project_id=${{ vars.GCP_PROJECT_ID }}" -auto-approve
+        working-directory: ./terraform/network
+
+  # --------------------------------------------------------------------------------
+  # JOB 2: SECURITY & WORKLOADS (THE SPOKES)
+  # These jobs run in parallel ONLY after Network is successfully deployed.
+  # --------------------------------------------------------------------------------
+  workloads:
+    name: "App: Workloads & Security"
+    needs: [network] # Dependency: Network must finish before this starts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        # We group Security and Workloads here. 
+        # Note: If workloads depend on security, split them into separate jobs.
+        directory: [security, workloads]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_SA_EMAIL }}
 
@@ -45,7 +84,6 @@ jobs:
         working-directory: ./terraform/${{ matrix.directory }}
 
       - name: Terraform Plan
-        id: plan
         run: terraform plan -var="project_id=${{ vars.GCP_PROJECT_ID }}" -no-color
         working-directory: ./terraform/${{ matrix.directory }}
 
@@ -53,3 +91,37 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -var="project_id=${{ vars.GCP_PROJECT_ID }}" -auto-approve
         working-directory: ./terraform/${{ matrix.directory }}
+
+  # --------------------------------------------------------------------------------
+  # JOB 3: OBSERVABILITY
+  # Final layer: Only runs after the App is alive to check its URL.
+  # --------------------------------------------------------------------------------
+  observability:
+    name: "Monitoring: Dashboards"
+    needs: [workloads] # Dependency: App must exist to be monitored
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform/observability
+
+      - name: Terraform Plan
+        run: terraform plan -var="project_id=${{ vars.GCP_PROJECT_ID }}" -no-color
+        working-directory: ./terraform/observability
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -var="project_id=${{ vars.GCP_PROJECT_ID }}" -auto-approve
+        working-directory: ./terraform/observability
