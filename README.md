@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/gcp-ce.jpg" alt="Cloud Architect Concept" width="400" style="border-radius: 15px;"/>
+  <img src="./assets/gcp-ce.jpg" alt="Cloud Architect Concept" width="500" style="border-radius: 15px;"/>
 
   <h1>🏥 GCP Enterprise Landing Zone (Hospital Infrastructure)</h1>
 
@@ -42,7 +42,7 @@ The main objective was to demonstrate how modern cloud-native practices can be a
 
 ## 🏗️ Architecture & Governance
 
-  <img src="./assets/arch.jpg" alt="Cloud Arch Concept" width="400" style="border-radius: 15px;"/>
+  <img src="./assets/arch.jpg" alt="Cloud Arch Concept" width="700" style="border-radius: 15px;"/>
 
 
 
