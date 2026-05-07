@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/gcp-ce.jpg" alt="Cloud Architect Concept" width="400" style="border-radius: 15px;"/>
+  <img src="./assets/gcp-ce.jpg" alt="Cloud Architect Concept" width="500" style="border-radius: 15px;"/>
 
   <h1>🏥 GCP Enterprise Landing Zone (Hospital Infrastructure)</h1>
 
@@ -42,7 +42,7 @@ The main objective was to demonstrate how modern cloud-native practices can be a
 
 ## 🏗️ Architecture & Governance
 
-  <img src="./assets/arch.jpg" alt="Cloud Arch Concept" width="400" style="border-radius: 15px;"/>
+  <img src="./assets/arch.jpg" alt="Cloud Arch Concept" width="1000" style="border-radius: 15px;"/>
 
 
 
@@ -70,7 +70,7 @@ Our deployment follows a strictly **sequential workflow** to prevent state-locki
 
 ### 1. Secure Application Access
 The Hospital API is running on a private network, accessible via an authenticated endpoint.
-<img src="./assets/hp-cloud-run.jpg" alt="Cloud Run Live" width="800" />
+<img src="./assets/hp-cloud-run.jpg" alt="Cloud Run Live" width="900" />
 
 ### 2. Automated Sequential Pipeline
 Successful deployment of all 4 layers in the correct order via GitHub Actions.
