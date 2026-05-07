@@ -1,11 +1,12 @@
 name: "GCP Landing Zone Deploy"
 
 on:
-  push:
-    branches: ["main"]
-    paths: ["terraform/**"]
-  pull_request:
-    branches: ["main"]
+  # push:                         
+  #   branches: ["main"]
+  #   paths: ["terraform/**"]
+  # pull_request:
+  #   branches: ["main"]
+  workflow_dispatch:              
 
 # Prevents multiple runs from clashing, but job dependencies handle the order
 concurrency:
